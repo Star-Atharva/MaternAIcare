@@ -1,9 +1,0 @@
-@'
-fastapi
-uvicorn[standard]
-pydantic
-scikit-learn
-joblib
-numpy
-pandas
-'@ | Out-File backend/requirements.txt -Encoding utf8
