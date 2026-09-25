@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MaternAI Care — AI Maternity Monitoring</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link rel="stylesheet" href="/static/style.css" />
+<style>
+  [x-cloak] { display: none !important; }
+  .glass { background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); }
+  .pulse-dot { animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .fade-in { animation: fadeIn 0.3s ease-in; }
+  @keyframes fadeIn { from{opacity:0; transform:translateY(-4px)} to{opacity:1; transform:translateY(0)} }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-900" x-data="app()" x-init="init()">
+
+<!-- ==================== LOGIN ==================== -->
+<div x-show="view === 'login'" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-rose-100 via-white to-indigo-100 p-4">
+  <div class="bg-white rounded-3xl shadow-2xl p-10 w-full max-w-md border border-white/60">
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-rose-500 to-rose-600 mb-4 shadow-lg shadow-rose-200">
+        <i data-lucide="heart-pulse" class="w-10 h-10 text-white"></i>
+      </div>
+      <h1 class="text-3xl font-bold bg-gradient-to-r from-rose-600 to-indigo-600 bg-clip-text text-transparent">MaternAI Care</h1>
+      <p class="text-slate-500 mt-2 text-sm">AI-enabled anomaly detection for maternity care</p>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5">Username</label>
+        <input x-model="login.username" type="text" placeholder="Enter username"
+          class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
+        <input x-model="login.password" @keydown.enter="doLogin()" type="password" placeholder="Enter password"
+          class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:border-transparent outline-none transition" />
+      </div>
+      <button @click="doLogin()" :disabled="login.loading"
+        class="w-full bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-rose-200 transition disabled:opacity-50">
+        <span x-show="!login.loading">Sign In</span>
+        <span x-show="login.loading">Signing in...</span>
+      </button>
+      <p x-show="login.error" x-text="login.error" class="text-red-600 text-sm text-center"></p>
+    </div>
+    <div class="mt-8 pt-6 border-t border-slate-100">
+      <p class="text-xs text-slate-400 text-center mb-3 font-medium uppercase tracking-wide">Quick Demo Login</p>
+      <div class="grid grid-cols-3 gap-2">
+        <button @click="quickLogin('mother')" class="flex flex-col items-center gap-1 px-3 py-3 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl transition">
+          <i data-lucide="user-round" class="w-5 h-5"></i>
+          <span class="text-xs font-medium">Mother</span>
+        </button>
+        <button @click="quickLogin('caretaker')" class="flex flex-col items-center gap-1 px-3 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition">
+          <i data-lucide="users" class="w-5 h-5"></i>
+          <span class="text-xs font-medium">Caretaker</span>
+        </button>
+        <button @click="quickLogin('clinic')" class="flex flex-col items-center gap-1 px-3 py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl transition">
+          <i data-lucide="building-2" class="w-5 h-5"></i>
+          <span class="text-xs font-medium">Clinic</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MOTHER DASHBOARD ==================== -->
+<div x-show="view === 'mother'" x-cloak class="min-h-screen bg-slate-100">
+  <!-- Header -->
+  <header class="glass border-b border-slate-200/60 px-6 py-4 flex items-center justify-between sticky top-0 z-30">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 flex items-center justify-center">
+        <i data-lucide="heart-pulse" class="w-6 h-6 text-white"></i>
+      </div>
+      <div>
+        <div class="font-bold text-lg leading-tight">MaternAI Care</div>
+        <div class="text-xs text-slate-500">Live Monitoring</div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-6">
+      <div class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium"
+           :class="simStatus.running ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'">
+        <span class="w-2 h-2 rounded-full" :class="simStatus.running ? 'bg-emerald-500 pulse-dot' : 'bg-slate-400'"></span>
+        <span x-text="simStatus.running ? (simStatus.scenario + ' @ ' + simStatus.speed + 'x') : 'Idle'"></span>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="text-right hidden sm:block">
+          <div class="text-sm font-semibold" x-text="user.name"></div>
+          <div class="text-xs text-slate-500 capitalize" x-text="user.role"></div>
+        </div>
+        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center text-white font-semibold text-sm"
+             x-text="user.name ? user.name.charAt(0) : '?'"></div>
+        <button @click="logout()" class="p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition" title="Logout">
+          <i data-lucide="log-out" class="w-5 h-5"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="max-w-7xl mx-auto p-6">
+    <!-- Stat cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-3">
+          <div class="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center">
+            <i data-lucide="activity" class="w-5 h-5 text-rose-600"></i>
+          </div>
+          <span class="text-xs font-medium text-rose-600 bg-rose-50 px-2 py-1 rounded-full">mmHg</span>
+        </div>
+        <div class="text-2xl font-bold" x-text="latest.bp"></div>
+        <div class="text-xs text-slate-500 mt-1">Blood Pressure</div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-3">
+          <div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+            <i data-lucide="heart" class="w-5 h-5 text-indigo-600"></i>
+          </div>
+          <span class="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">bpm</span>
+        </div>
+        <div class="text-2xl font-bold" x-text="latest.hr"></div>
+        <div class="text-xs text-slate-500 mt-1">Heart Rate</div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-3">
+          <div class="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center">
+            <i data-lucide="droplet" class="w-5 h-5 text-sky-600"></i>
+          </div>
+          <span class="text-xs font-medium text-sky-600 bg-sky-50 px-2 py-1 rounded-full">%</span>
+        </div>
+        <div class="text-2xl font-bold" x-text="latest.spo2"></div>
+        <div class="text-xs text-slate-500 mt-1">SpO₂</div>
+      </div>
+
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+            <i data-lucide="thermometer" class="w-5 h-5 text-amber-600"></i>
+          </div>
+          <span class="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">°C</span>
+        </div>
+        <div class="text-2xl font-bold" x-text="latest.temp"></div>
+        <div class="text-xs text-slate-500 mt-1">Temperature</div>
+      </div>
+    </div>
+
+    <!-- Chart + Alerts -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <!-- Chart -->
+      <div class="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+        <div class="flex items-center justify-between mb-5">
+          <div>
+            <h2 class="text-lg font-bold">Live Vitals Trend</h2>
+            <p class="text-xs text-slate-500">Auto-refreshing every 3 seconds</p>
+          </div>
+          <div class="flex items-center gap-1.5 text-xs text-slate-500">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 pulse-dot"></span>
+            Live
+          </div>
+        </div>
+        <div style="height: 320px;">
+          <canvas id="vitalsChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Alerts -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col" style="max-height: 480px;">
+        <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold">Alerts</h2>
+            <p class="text-xs text-slate-500"><span x-text="alerts.length"></span> total</p>
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700" x-text="alerts.filter(a=>a.severity==='critical').length + ' crit'"></span>
+          </div>
+        </div>
+        <div class="overflow-y-auto flex-1 p-3 space-y-2">
+          <template x-for="a in alerts.slice(0, 30)" :key="a.id">
+            <div class="fade-in border-l-4 rounded-r-xl p-3 transition hover:shadow-sm"
+                 :class="{
+                   'border-red-500 bg-red-50': a.severity === 'critical',
+                   'border-amber-500 bg-amber-50': a.severity === 'warning',
+                   'border-sky-500 bg-sky-50': a.severity === 'info'
+                 }">
+              <div class="flex items-center justify-between mb-1">
+                <div class="flex items-center gap-1.5">
+                  <i :data-lucide="a.severity === 'critical' ? 'alert-octagon' : a.severity === 'warning' ? 'alert-triangle' : 'info'"
+                     class="w-3.5 h-3.5"
+                     :class="{
+                       'text-red-600': a.severity === 'critical',
+                       'text-amber-600': a.severity === 'warning',
+                       'text-sky-600': a.severity === 'info'
+                     }"></i>
+                  <span class="text-xs font-bold uppercase tracking-wide"
+                        :class="{
+                          'text-red-700': a.severity === 'critical',
+                          'text-amber-700': a.severity === 'warning',
+                          'text-sky-700': a.severity === 'info'
+                        }" x-text="a.severity"></span>
+                </div>
+                <span class="text-xs text-slate-500" x-text="fmtTime(a.created_at)"></span>
+              </div>
+              <p class="text-sm font-medium text-slate-800 leading-snug" x-text="a.message"></p>
+              <div class="flex items-center gap-2 mt-1.5">
+                <span class="text-xs px-2 py-0.5 rounded-full bg-white/60 text-slate-600 capitalize" x-text="a.category"></span>
+                <span x-show="a.explanation && a.explanation.rule"
+                      class="text-xs px-2 py-0.5 rounded-full bg-slate-800/5 text-slate-500 font-mono"
+                      x-text="a.explanation && a.explanation.rule"></span>
+              </div>
+            </div>
+          </template>
+          <div x-show="alerts.length === 0" class="flex flex-col items-center justify-center py-12 text-slate-400">
+            <i data-lucide="shield-check" class="w-10 h-10 mb-2 text-emerald-400"></i>
+            <p class="text-sm">All clear</p>
+            <p class="text-xs">No alerts detected</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Simulation Panel -->
+    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+      <div class="flex items-center justify-between mb-5">
+        <div>
+          <h2 class="text-lg font-bold">Demo Simulation</h2>
+          <p class="text-xs text-slate-500">Trigger clinical scenarios to see the AI in action</p>
+        </div>
+        <i data-lucide="flask-conical" class="w-5 h-5 text-slate-400"></i>
+      </div>
+
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
+        <button @click="startSim('normal')" :disabled="simStatus.running"
+          class="group flex flex-col items-center gap-2 p-4 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 transition disabled:opacity-40 disabled:cursor-not-allowed">
+          <i data-lucide="check-circle-2" class="w-5 h-5 text-slate-600"></i>
+          <span class="text-sm font-medium">Normal</span>
+        </button>
+        <button @click="startSim('preeclampsia')" :disabled="simStatus.running"
+          class="group flex flex-col items-center gap-2 p-4 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 transition disabled:opacity-40 disabled:cursor-not-allowed">
+          <i data-lucide="trending-up" class="w-5 h-5 text-rose-600"></i>
+          <span class="text-sm font-medium text-rose-800">Preeclampsia</span>
+        </button>
+        <button @click="startSim('hemorrhage')" :disabled="simStatus.running"
+          class="group flex flex-col items-center gap-2 p-4 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 transition disabled:opacity-40 disabled:cursor-not-allowed">
+          <i data-lucide="droplets" class="w-5 h-5 text-red-600"></i>
+          <span class="text-sm font-medium text-red-800">Hemorrhage</span>
+        </button>
+        <button @click="startSim('sepsis')" :disabled="simStatus.running"
+          class="group flex flex-col items-center gap-2 p-4 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 transition disabled:opacity-40 disabled:cursor-not-allowed">
+          <i data-lucide="thermometer-sun" class="w-5 h-5 text-amber-600"></i>
+          <span class="text-sm font-medium text-amber-800">Sepsis</span>
+        </button>
+        <div class="flex flex-col items-center gap-2 p-4 rounded-xl bg-indigo-50 border border-indigo-200">
+          <div class="flex items-center gap-2 w-full">
+            <input x-model.number="simSpeed" type="range" min="1" max="10" class="w-full accent-indigo-600" />
+          </div>
+          <span class="text-sm font-medium text-indigo-800" x-text="simSpeed + 'x speed'"></span>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <button @click="stopSim()" :disabled="!simStatus.running"
+          class="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-medium transition disabled:opacity-40 disabled:cursor-not-allowed">
+          <i data-lucide="square" class="w-4 h-4"></i>
+          Stop Simulation
+        </button>
+        <button @click="resetData()"
+          class="flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-xl font-medium transition">
+          <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+          Reset Data
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== PATIENT LIST ==================== -->
+<div x-show="view === 'list'" x-cloak class="min-h-screen bg-slate-100">
+  <header class="glass border-b border-slate-200/60 px-6 py-4 flex items-center justify-between sticky top-0 z-30">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 flex items-center justify-center">
+        <i data-lucide="heart-pulse" class="w-6 h-6 text-white"></i>
+      </div>
+      <div>
+        <div class="font-bold text-lg leading-tight">MaternAI Care</div>
+        <div class="text-xs text-slate-500 capitalize" x-text="user.role + ' Portal'"></div>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="text-right hidden sm:block">
+        <div class="text-sm font-semibold" x-text="user.name"></div>
+        <div class="text-xs text-slate-500 capitalize" x-text="user.role"></div>
+      </div>
+      <button @click="logout()" class="p-2 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-900">
+        <i data-lucide="log-out" class="w-5 h-5"></i>
+      </button>
+    </div>
+  </header>
+
+  <div class="max-w-5xl mx-auto p-6">
+    <div class="mb-6">
+      <h2 class="text-2xl font-bold">Patients</h2>
+      <p class="text-sm text-slate-500">Click a patient to view their dashboard</p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <template x-for="p in patients" :key="p.id">
+        <div @click="openPatient(p.id)" class="bg-white rounded-2xl border border-slate-100 p-5 cursor-pointer hover:shadow-lg hover:border-rose-200 transition-all">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-full bg-gradient-to-br from-rose-400 to-rose-500 flex items-center justify-center text-white font-bold"
+                   x-text="p.name ? p.name.charAt(0) : '?'"></div>
+              <div>
+                <h3 class="font-semibold text-lg" x-text="p.name"></h3>
+                <p class="text-sm text-slate-500">Age <span x-text="p.age"></span> · <span x-text="p.blood_group"></span></p>
+              </div>
+            </div>
+            <i data-lucide="chevron-right" class="w-5 h-5 text-slate-400"></i>
+          </div>
+        </div>
+      </template>
+      <div x-show="patients.length === 0" class="col-span-full bg-white rounded-2xl border border-slate-100 p-12 text-center text-slate-400">
+        <i data-lucide="user-x" class="w-10 h-10 mx-auto mb-2"></i>
+        <p>No patients assigned</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>
