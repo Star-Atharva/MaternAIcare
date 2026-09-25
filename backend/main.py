@@ -249,3 +249,40 @@ def get_alerts(patient_id: int):
             except Exception:
                 pass
     return rows
+# =========================================================
+# SIMULATION CONTROL
+# =========================================================
+import threading
+from simulator import run_scenario, SIM_STATE, SCENARIOS
+
+@app.post("/sim/start/{scenario}")
+def sim_start(scenario: str, patient_id: int = 1, speed: float = 1.0):
+    if SIM_STATE["running"]:
+        raise HTTPException(400, f"Already running: {SIM_STATE['scenario']}")
+    if scenario not in SCENARIOS:
+        raise HTTPException(400, f"Unknown scenario. Use: {list(SCENARIOS.keys())}")
+    t = threading.Thread(
+        target=run_scenario,
+        args=(scenario, patient_id, speed),
+        daemon=True,
+    )
+    t.start()
+    return {"ok": True, "scenario": scenario,
+            "patient_id": patient_id, "speed": speed}
+
+@app.post("/sim/stop")
+def sim_stop():
+    SIM_STATE["running"] = False
+    return {"ok": True}
+
+@app.get("/sim/status")
+def sim_status():
+    return SIM_STATE
+
+@app.post("/sim/reset/{patient_id}")
+def sim_reset(patient_id: int):
+    conn = __import__("db").conn
+    conn.execute("DELETE FROM readings WHERE patient_id=?", (patient_id,))
+    conn.execute("DELETE FROM alerts   WHERE patient_id=?", (patient_id,))
+    conn.commit()
+    return {"ok": True, "patient_id": patient_id}
